@@ -1,0 +1,64 @@
+version: '3.8'
+
+networks:
+  mini-crm:
+    name: ${PROJECT_NAME}
+
+services:
+  nginx:
+    build: ./docker/nginx
+    container_name: ${PROJECT_NAME}-nginx
+    environment:
+      APP_NAME: ${APP_NAME}
+    ports:
+      - ${LOCAL_WEB_PORT}:${APP_WEB_PORT}
+    volumes:
+      - ./:${APP_PATH}
+      - ./docker/volumes/nginx/core:/etc/nginx/
+      - ./docker/volumes/nginx/logs:/var/log/nginx/
+    depends_on:
+      - php
+    networks:
+      - mini-crm
+
+  php:
+    build:
+      context: ./docker/php
+      args:
+        docker_user: user
+    container_name: ${PROJECT_NAME}-php
+    volumes:
+      - ./:${APP_PATH}
+    depends_on:
+      - pgsql
+    networks:
+      - mini-crm
+
+  pgsql:
+    # image: postgres:latest
+    image: arm64v8/postgres:latest
+    container_name: ${PROJECT_NAME}-pgsql
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./docker/volumes/postgresql/lib:/var/lib/postgresql/data
+    ports:
+      - ${LOCAL_PGSQL_PORT}:${APP_PGSQL_PORT}
+    networks:
+      - mini-crm
+
+  node:
+    build: ./docker/node
+    container_name: ${PROJECT_NAME}-node
+    volumes:
+      - ./:${APP_PATH}:cached
+      - ./.env:${APP_PATH}/.env
+    working_dir: /var/www/project
+    profiles: ['yarn']
+    entrypoint: ['yarn']
+    ports:
+      - ${VITE_PORT}:${VITE_PORT}
+    networks:
+      - ${PROJECT_NAME}
